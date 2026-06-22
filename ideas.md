@@ -1,9 +1,14 @@
-profile pics
+DONE profile pics
 - placeholder in 'images'
 
-last contacted
+zuletzt kontaktiert
 - Pills:
   - in person
   - via messenger
   - call
   - email
+
+  Pille wählen, Datum picker poppt auf
+
+Dots auf Weltkarte
+
