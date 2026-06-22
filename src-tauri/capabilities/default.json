@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-capability",
+  "description": "Capabilities für das Hauptfenster",
+  "windows": ["main"],
+  "permissions": ["core:default", "shell:allow-open"]
+}

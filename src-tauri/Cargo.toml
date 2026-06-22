@@ -1,0 +1,29 @@
+[package]
+name = "social-graph"
+version = "0.1.0"
+description = "Desktop-App zur Verwaltung und Visualisierung sozialer Beziehungen"
+edition = "2021"
+
+[lib]
+name = "social_graph_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "social-graph"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "macros", "migrate"] }
+tokio = { version = "1", features = ["full"] }
+dirs = "5"
+thiserror = "1"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
