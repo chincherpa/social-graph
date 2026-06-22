@@ -1,4 +1,7 @@
 <script>
+  import { uploadPersonImage, deletePersonImage, placeholderFor } from "./api.js";
+  import ImageCropTool from "./ImageCropTool.svelte";
+
   let { person = null, onSave = () => {}, onDelete = () => {}, onClose = () => {} } = $props();
 
   let firstName = $state(person?.first_name ?? "");
@@ -11,6 +14,56 @@
   let note = $state(person?.note ?? "");
   let color = $state(person?.color ?? "#3b82f6");
   let gender = $state(person?.gender ?? null);
+
+  let pendingFile = $state(null);
+  let imageError = $state("");
+  let fileInput;
+
+  function imageSrc() {
+    if (pendingFile) return null; // crop tool is showing instead
+    if (person?.image_data) return person.image_data;
+    return placeholderFor(person?.gender);
+  }
+
+  function onFileChosen(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file later
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      imageError = "Datei ist größer als 5 MB";
+      return;
+    }
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      imageError = "Nur JPG und PNG werden unterstützt";
+      return;
+    }
+
+    imageError = "";
+    pendingFile = file;
+  }
+
+  async function onCropConfirm({ x, y, radius }) {
+    const bytes = new Uint8Array(await pendingFile.arrayBuffer());
+    try {
+      const updated = await uploadPersonImage(person.id, bytes, x, y, radius);
+      person = updated;
+      onSave; // no-op reference kept; actual persistence already happened server-side
+    } catch (err) {
+      imageError = String(err);
+    } finally {
+      pendingFile = null;
+    }
+  }
+
+  function onCropCancel() {
+    pendingFile = null;
+  }
+
+  async function onDeleteImage() {
+    const updated = await deletePersonImage(person.id);
+    person = updated;
+  }
 
   // Felder neu befüllen, wenn eine andere Person ausgewählt wird
   $effect(() => {
@@ -54,6 +107,31 @@
 
 <div class="panel">
   <h3>{person ? "Person bearbeiten" : "Neue Person"}</h3>
+
+  {#if person}
+    <div class="image-section">
+      <img src={imageSrc()} alt={lastName} class="avatar" />
+      <div class="image-actions">
+        <input
+          type="file"
+          accept="image/jpeg,image/png"
+          bind:this={fileInput}
+          onchange={onFileChosen}
+          style="display:none"
+        />
+        <button type="button" onclick={() => fileInput.click()}>Foto hochladen</button>
+        {#if person.image_data}
+          <button type="button" class="danger" onclick={onDeleteImage}>Foto entfernen</button>
+        {/if}
+      </div>
+      {#if imageError}
+        <span class="error-text">{imageError}</span>
+      {/if}
+    </div>
+    {#if pendingFile}
+      <ImageCropTool imageFile={pendingFile} oncropconfirm={onCropConfirm} oncropcancel={onCropCancel} />
+    {/if}
+  {/if}
 
   <label>
     Vorname
@@ -181,6 +259,23 @@
   .error-text {
     color: #ef4444;
     font-size: 0.75rem;
+  }
+  .image-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .avatar {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #cbd5e1;
+  }
+  .image-actions {
+    display: flex;
+    gap: 0.5rem;
   }
   .gender-toggle {
     display: flex;
