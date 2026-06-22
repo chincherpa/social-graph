@@ -1,7 +1,7 @@
 <script>
   import { onMount, onDestroy } from "svelte";
   import cytoscape from "cytoscape";
-  import { displayName } from "./api.js";
+  import { displayName, placeholderFor } from "./api.js";
 
   // Props (Svelte 5 runes)
   let { people = [], relationships = [], onNodeClick = () => {}, onEdgeClick = () => {}, onCanvasClick = () => {}, connectMode = false, onConnectTarget = () => {} } = $props();
@@ -17,6 +17,7 @@
         label: displayName(p),
         color: p.color,
         shape: p.gender === "m" ? "rectangle" : p.gender === "w" ? "ellipse" : "round-rectangle",
+        avatar: p.image_data || placeholderFor(p.gender),
       },
     }));
     const edges = relationships.map((r) => ({
@@ -49,6 +50,9 @@
           style: {
             shape: "data(shape)",
             "background-color": "data(color)",
+            "background-image": "data(avatar)",
+            "background-fit": "cover",
+            "background-clip": "node",
             label: "data(label)",
             color: "#1f2937",
             "font-size": 13,
