@@ -1,13 +1,13 @@
 use crate::models::{
     FamilyMember, FamilyMemberDetail, GraphData, NewFamilyMember, NewPerson, NewRelationship,
-    Person, Relationship, UpdatePerson, UpdateRelationship,
+    NominatimResult, Person, Relationship, UpdatePerson, UpdateRelationship,
 };
 use sqlx::SqlitePool;
 use tauri::State;
 
 type Db<'a> = State<'a, SqlitePool>;
 
-const PERSON_COLUMNS: &str = "id, first_name, last_name, nickname, birth_date, known_since, address, employer, note, color, gender, image_path, image_crop_x, image_crop_y, image_crop_radius, created_at";
+const PERSON_COLUMNS: &str = "id, first_name, last_name, nickname, birth_date, known_since, address, employer, note, color, gender, image_path, image_crop_x, image_crop_y, image_crop_radius, lat, lon, geocoded_at, created_at";
 
 fn attach_image(mut person: Person) -> Person {
     if let Some(path) = &person.image_path {
@@ -60,7 +60,11 @@ pub async fn add_person(db: Db<'_>, payload: NewPerson) -> Result<Person, String
 #[tauri::command]
 pub async fn update_person(db: Db<'_>, payload: UpdatePerson) -> Result<Person, String> {
     let rec = sqlx::query_as::<_, Person>(&format!(
-        "UPDATE people SET first_name = ?, last_name = ?, nickname = ?, birth_date = ?, known_since = ?, address = ?, employer = ?, note = ?, color = ?, gender = ?
+        "UPDATE people SET first_name = ?, last_name = ?, nickname = ?, birth_date = ?, known_since = ?,
+            lat = CASE WHEN address IS NOT ? THEN NULL ELSE lat END,
+            lon = CASE WHEN address IS NOT ? THEN NULL ELSE lon END,
+            geocoded_at = CASE WHEN address IS NOT ? THEN NULL ELSE geocoded_at END,
+            address = ?, employer = ?, note = ?, color = ?, gender = ?
          WHERE id = ?
          RETURNING {PERSON_COLUMNS}"
     ))
@@ -69,6 +73,9 @@ pub async fn update_person(db: Db<'_>, payload: UpdatePerson) -> Result<Person, 
     .bind(payload.nickname)
     .bind(payload.birth_date)
     .bind(payload.known_since)
+    .bind(payload.address.clone())
+    .bind(payload.address.clone())
+    .bind(payload.address.clone())
     .bind(payload.address)
     .bind(payload.employer)
     .bind(payload.note)
@@ -160,14 +167,28 @@ pub async fn delete_person_image(db: Db<'_>, person_id: i64) -> Result<Person, S
 
 // ---------- Relationships ----------
 
-/// Normalisiert ein Personen-Paar so, dass from_id < to_id gilt.
-/// Das hält die UNIQUE-Constraint konsistent, egal in welcher
-/// Reihenfolge der Nutzer im Frontend zwei Knoten verbindet.
-fn normalize_pair(a: i64, b: i64) -> Result<(i64, i64), String> {
+fn check_distinct(a: i64, b: i64) -> Result<(), String> {
     if a == b {
         return Err("Eine Person kann nicht mit sich selbst verbunden werden".into());
     }
-    Ok(if a < b { (a, b) } else { (b, a) })
+    Ok(())
+}
+
+/// Prüft, ob bereits eine Kante zwischen den beiden Personen existiert
+/// (in beliebiger Richtung). SQLite kann UNIQUE auf einem ungeordneten
+/// Paar nicht ausdrücken, darum wird das hier in Rust geprüft.
+async fn pair_exists(db: &SqlitePool, a: i64, b: i64) -> Result<bool, String> {
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM relationships WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?)",
+    )
+    .bind(a)
+    .bind(b)
+    .bind(b)
+    .bind(a)
+    .fetch_one(db)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(count > 0)
 }
 
 #[tauri::command]
@@ -185,27 +206,37 @@ pub async fn add_relationship(
     db: Db<'_>,
     payload: NewRelationship,
 ) -> Result<Relationship, String> {
-    let (from_id, to_id) = normalize_pair(payload.person_a, payload.person_b)?;
+    check_distinct(payload.person_a, payload.person_b)?;
+    if pair_exists(db.inner(), payload.person_a, payload.person_b).await? {
+        return Err("Diese beiden Personen sind bereits verbunden".to_string());
+    }
 
     let rec = sqlx::query_as::<_, Relationship>(
         "INSERT INTO relationships (from_id, to_id, kind, strength, note)
          VALUES (?, ?, ?, ?, ?)
          RETURNING id, from_id, to_id, kind, strength, note, created_at",
     )
-    .bind(from_id)
-    .bind(to_id)
+    .bind(payload.person_a)
+    .bind(payload.person_b)
     .bind(payload.kind)
     .bind(payload.strength)
     .bind(payload.note)
     .fetch_one(db.inner())
     .await
-    .map_err(|e| {
-        if e.to_string().contains("UNIQUE") {
-            "Diese beiden Personen sind bereits verbunden".to_string()
-        } else {
-            e.to_string()
-        }
-    })?;
+    .map_err(|e| e.to_string())?;
+    Ok(rec)
+}
+
+#[tauri::command]
+pub async fn swap_relationship_direction(db: Db<'_>, id: i64) -> Result<Relationship, String> {
+    let rec = sqlx::query_as::<_, Relationship>(
+        "UPDATE relationships SET from_id = to_id, to_id = from_id WHERE id = ?
+         RETURNING id, from_id, to_id, kind, strength, note, created_at",
+    )
+    .bind(id)
+    .fetch_one(db.inner())
+    .await
+    .map_err(|e| e.to_string())?;
     Ok(rec)
 }
 
@@ -255,6 +286,23 @@ pub async fn get_family(db: Db<'_>, person_id: i64) -> Result<Vec<FamilyMemberDe
     .map_err(|e| e.to_string())
 }
 
+/// relation_type von person_id->family_id zu Sicht von family_id->person_id drehen.
+/// other_gender ist das Geschlecht der Person, deren Rolle gerade benannt wird
+/// (bei "Kind" der Elternteil, also family_id; sonst irrelevant).
+fn inverse_relation_type(relation_type: &str, parent_gender: Option<&str>) -> String {
+    match relation_type {
+        "Kind" => match parent_gender {
+            Some("w") => "Mutter".to_string(),
+            Some("m") => "Vater".to_string(),
+            _ => "Elternteil".to_string(),
+        },
+        "Mutter" | "Vater" => "Kind".to_string(),
+        "Ehepartner" => "Ehepartner".to_string(),
+        "Geschwister" => "Geschwister".to_string(),
+        _ => "Sonstige".to_string(),
+    }
+}
+
 #[tauri::command]
 pub async fn add_family_member(
     db: Db<'_>,
@@ -294,12 +342,34 @@ pub async fn add_family_member(
         }
     })?;
 
-    if let Ok((from_id, to_id)) = normalize_pair(payload.person_id, family_id) {
+    // Umgekehrten Eintrag anlegen, damit family_id ebenfalls "weiß", in welcher
+    // Beziehung sie zu person_id steht (z.B. A ist Kind von B -> B ist Mutter von A).
+    let parent_gender: Option<String> = sqlx::query_scalar("SELECT gender FROM people WHERE id = ?")
+        .bind(family_id)
+        .fetch_optional(db.inner())
+        .await
+        .ok()
+        .flatten();
+    let inverse_type = inverse_relation_type(&payload.relation_type, parent_gender.as_deref());
+
+    let _ = sqlx::query(
+        "INSERT INTO family_members (person_id, family_id, relation_type) VALUES (?, ?, ?)",
+    )
+    .bind(family_id)
+    .bind(payload.person_id)
+    .bind(&inverse_type)
+    .execute(db.inner())
+    .await;
+
+    // person_id ist [relation_type] von family_id -> Richtung muss erhalten bleiben.
+    if check_distinct(payload.person_id, family_id).is_ok()
+        && !pair_exists(db.inner(), payload.person_id, family_id).await.unwrap_or(true)
+    {
         let _ = sqlx::query(
             "INSERT INTO relationships (from_id, to_id, kind, strength) VALUES (?, ?, ?, 3)",
         )
-        .bind(from_id)
-        .bind(to_id)
+        .bind(payload.person_id)
+        .bind(family_id)
         .bind(&payload.relation_type)
         .execute(db.inner())
         .await;
@@ -310,22 +380,79 @@ pub async fn add_family_member(
 
 #[tauri::command]
 pub async fn remove_family_member(db: Db<'_>, person_id: i64, family_id: i64) -> Result<(), String> {
-    sqlx::query("DELETE FROM family_members WHERE person_id = ? AND family_id = ?")
+    sqlx::query("DELETE FROM family_members WHERE (person_id = ? AND family_id = ?) OR (person_id = ? AND family_id = ?)")
         .bind(person_id)
         .bind(family_id)
+        .bind(family_id)
+        .bind(person_id)
         .execute(db.inner())
         .await
         .map_err(|e| e.to_string())?;
 
-    if let Ok((from_id, to_id)) = normalize_pair(person_id, family_id) {
-        let _ = sqlx::query("DELETE FROM relationships WHERE from_id = ? AND to_id = ?")
-            .bind(from_id)
-            .bind(to_id)
-            .execute(db.inner())
-            .await;
-    }
+    let _ = sqlx::query(
+        "DELETE FROM relationships WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?)",
+    )
+    .bind(person_id)
+    .bind(family_id)
+    .bind(family_id)
+    .bind(person_id)
+    .execute(db.inner())
+    .await;
 
     Ok(())
+}
+
+// ---------- Karte / Geocoding ----------
+
+/// Geocodiert die Adresse einer Person über Nominatim (OpenStreetMap) und
+/// speichert lat/lon. Nominatim verlangt einen aussagekräftigen User-Agent
+/// und max. 1 Request/Sekunde – für eine Einzelperson pro Klick unkritisch.
+#[tauri::command]
+pub async fn geocode_person(db: Db<'_>, person_id: i64) -> Result<Person, String> {
+    let row: Option<(Option<String>,)> = sqlx::query_as("SELECT address FROM people WHERE id = ?")
+        .bind(person_id)
+        .fetch_optional(db.inner())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let address = match row {
+        Some((Some(a),)) if !a.trim().is_empty() => a,
+        _ => return Err("Keine Adresse hinterlegt".to_string()),
+    };
+
+    let client = reqwest::Client::new();
+    let results: Vec<NominatimResult> = client
+        .get("https://nominatim.openstreetmap.org/search")
+        .query(&[("q", address.as_str()), ("format", "json"), ("limit", "1")])
+        .header("User-Agent", "social-graph-desktop-app/0.1")
+        .send()
+        .await
+        .map_err(|e| format!("Geocoding-Anfrage fehlgeschlagen: {e}"))?
+        .json()
+        .await
+        .map_err(|e| format!("Geocoding-Antwort ungültig: {e}"))?;
+
+    let hit = results
+        .into_iter()
+        .next()
+        .ok_or("Adresse konnte nicht gefunden werden")?;
+
+    let lat: f64 = hit.lat.parse().map_err(|_| "Ungültige Koordinate")?;
+    let lon: f64 = hit.lon.parse().map_err(|_| "Ungültige Koordinate")?;
+
+    let rec = sqlx::query_as::<_, Person>(&format!(
+        "UPDATE people SET lat = ?, lon = ?, geocoded_at = datetime('now')
+         WHERE id = ?
+         RETURNING {PERSON_COLUMNS}"
+    ))
+    .bind(lat)
+    .bind(lon)
+    .bind(person_id)
+    .fetch_one(db.inner())
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(attach_image(rec))
 }
 
 // ---------- Graph (kombiniert) ----------

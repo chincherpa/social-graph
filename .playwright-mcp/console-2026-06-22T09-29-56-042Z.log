@@ -1,0 +1,25 @@
+[    7304ms] [LOG] INVOKE get_graph {} @ :4
+[    7326ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:1420/favicon.ico:0
+[   31283ms] [LOG] INVOKE get_family {"personId":1} @ :4
+[   31285ms] TypeError: Cannot read properties of null (reading 'length')
+
+	in <unknown>
+	in FamilyPanel.svelte
+	in App.svelte
+	in undefined
+
+    at http://localhost:1420/src/lib/FamilyPanel.svelte:183:38
+    at http://localhost:1420/node_modules/.vite/deps/chunk-2GUY26LA.js?v=bdfbe582:808:5
+    at update_reaction (http://localhost:1420/node_modules/.vite/deps/chunk-4FKV3JSN.js?v=bdfbe582:4189:18)
+    at update_effect (http://localhost:1420/node_modules/.vite/deps/chunk-4FKV3JSN.js?v=bdfbe582:4330:21)
+    at _Batch.traverse_fn (http://localhost:1420/node_modules/.vite/deps/chunk-4FKV3JSN.js?v=bdfbe582:3052:9)
+    at _Batch.process_fn (http://localhost:1420/node_modules/.vite/deps/chunk-4FKV3JSN.js?v=bdfbe582:2960:60)
+    at _Batch.flush (http://localhost:1420/node_modules/.vite/deps/chunk-4FKV3JSN.js?v=bdfbe582:2731:59)
+    at Array.<anonymous> (http://localhost:1420/node_modules/.vite/deps/chunk-4FKV3JSN.js?v=bdfbe582:2829:19)
+    at run_all (http://localhost:1420/node_modules/.vite/deps/chunk-4FKV3JSN.js?v=bdfbe582:50:11)
+    at run_micro_tasks (http://localhost:1420/node_modules/.vite/deps/chunk-4FKV3JSN.js?v=bdfbe582:732:3)
+[  140535ms] [ERROR] updated at
+    at $effect (http://localhost:1420/src/lib/ImageCropTool.svelte:27:6) @ http://localhost:1420/node_modules/.vite/deps/chunk-4FKV3JSN.js?v=bdfbe582:3286
+[  140539ms] effect_update_depth_exceeded
+Maximum update depth exceeded. This typically indicates that an effect reads and writes the same piece of state
+https://svelte.dev/e/effect_update_depth_exceeded

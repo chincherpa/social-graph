@@ -11,7 +11,8 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "cytoscape": "^3.30.0"
+    "cytoscape": "^3.30.0",
+    "leaflet": "^1.9.4"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^4.0.0",

@@ -1,6 +1,13 @@
 <script>
-  import { displayName } from "./api.js";
-  let { relationship, peopleById, onSave = () => {}, onDelete = () => {}, onClose = () => {} } = $props();
+  import { displayName, directionalKinds, reciprocalKind } from "./api.js";
+  let {
+    relationship,
+    peopleById,
+    onSave = () => {},
+    onDelete = () => {},
+    onSwap = () => {},
+    onClose = () => {},
+  } = $props();
 
   let kind = $state(relationship?.kind ?? "kennt");
   let strength = $state(relationship?.strength ?? 3);
@@ -13,6 +20,7 @@
   });
 
   const kinds = [
+    "Bruder",
     "Ehefrau",
     "Ehemann",
     "Enkel",
@@ -24,14 +32,19 @@
     "Freund",
     "kennt",
     "Kollege",
+    "Mutter",
     "Oma",
     "Onkel",
     "Opa",
     "Partner",
+    "Schwester",
     "Sohn",
     "Tante",
-    "Tochter"
+    "Tochter",
+    "Vater"
     ];
+
+  const isDirectional = () => directionalKinds.has(kind);
 
   function submit() {
     onSave({ id: relationship.id, kind, strength, note: note.trim() || null });
@@ -39,10 +52,21 @@
 
   const fromName = () => displayName(peopleById.get(relationship?.from_id));
   const toName = () => displayName(peopleById.get(relationship?.to_id));
+  const reciprocalLabel = () => reciprocalKind(kind, peopleById.get(relationship?.to_id)?.gender);
 </script>
 
 <div class="panel">
-  <h3>{fromName()} ↔ {toName()}</h3>
+  {#if isDirectional()}
+    <h3>
+      {fromName()} <span class="arrow">→ {kind} von →</span> {toName()}
+    </h3>
+    {#if reciprocalLabel() !== kind}
+      <span class="reciprocal">{toName()} ist also {reciprocalLabel()} von {fromName()}</span>
+    {/if}
+    <button class="swap" onclick={() => onSwap(relationship.id)}>⇄ Richtung tauschen</button>
+  {:else}
+    <h3>{fromName()} ↔ {toName()}</h3>
+  {/if}
 
   <label>
     Art der Beziehung
@@ -83,6 +107,24 @@
   h3 {
     margin: 0;
     font-size: 1rem;
+  }
+  .arrow {
+    color: #94a3b8;
+    font-weight: 400;
+    font-size: 0.85rem;
+  }
+  .reciprocal {
+    color: #64748b;
+    font-size: 0.78rem;
+  }
+  .swap {
+    align-self: flex-start;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.78rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #f1f5f9;
+    cursor: pointer;
   }
   label {
     display: flex;

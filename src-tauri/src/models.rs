@@ -17,6 +17,9 @@ pub struct Person {
     pub image_crop_x: Option<i64>,
     pub image_crop_y: Option<i64>,
     pub image_crop_radius: Option<i64>,
+    pub lat: Option<f64>,
+    pub lon: Option<f64>,
+    pub geocoded_at: Option<String>,
     pub created_at: String,
     #[sqlx(skip)]
     pub image_data: Option<String>,
@@ -112,4 +115,10 @@ pub struct FamilyMemberDetail {
 pub struct GraphData {
     pub people: Vec<Person>,
     pub relationships: Vec<Relationship>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct NominatimResult {
+    pub lat: String,
+    pub lon: String,
 }

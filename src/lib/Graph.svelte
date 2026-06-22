@@ -1,14 +1,33 @@
 <script>
   import { onMount, onDestroy } from "svelte";
   import cytoscape from "cytoscape";
-  import { displayName, placeholderFor } from "./api.js";
+  import { displayName, placeholderFor, reciprocalKind } from "./api.js";
 
   // Props (Svelte 5 runes)
-  let { people = [], relationships = [], onNodeClick = () => {}, onEdgeClick = () => {}, onCanvasClick = () => {}, connectMode = false, onConnectTarget = () => {} } = $props();
+  let { people = [], relationships = [], selectedPersonId = null, onNodeClick = () => {}, onEdgeClick = () => {}, onCanvasClick = () => {}, connectMode = false, onConnectTarget = () => {} } = $props();
 
   let container;
   let cy;
   let pendingSource = null; // erste Person beim Verbinden-Modus
+
+  // kinds, bei denen from_id -> to_id eine Richtung bedeutet
+  // (z.B. "Tochter": from_id ist die Tochter von to_id). Muss zu EdgeForm.svelte passen.
+  const directionalKinds = new Set([
+    "Bruder",
+    "Ehefrau",
+    "Ehemann",
+    "Enkel",
+    "Enkelin",
+    "Ex-Ehefrau",
+    "Ex-Ehemann",
+    "Oma",
+    "Onkel",
+    "Opa",
+    "Schwester",
+    "Sohn",
+    "Tante",
+    "Tochter",
+  ]);
 
   function buildElements() {
     const nodes = people.map((p) => ({
@@ -26,8 +45,11 @@
         source: String(r.from_id),
         target: String(r.to_id),
         kind: r.kind,
+        label: r.kind,
+        arrowSide: "target",
         strength: r.strength,
         relId: r.id,
+        directed: directionalKinds.has(r.kind) ? "yes" : "no",
       },
     }));
     return [...nodes, ...edges];
@@ -69,6 +91,9 @@
           style: {
             "border-width": 4,
             "border-color": "#facc15",
+            width: 69,
+            height: 69,
+            "z-index": 999,
           },
         },
         {
@@ -77,12 +102,28 @@
             width: "data(strength)",
             "line-color": "#94a3b8",
             "curve-style": "bezier",
-            label: "data(kind)",
+            label: "data(label)",
             "font-size": 10,
             color: "#64748b",
             "text-background-color": "#ffffff",
             "text-background-opacity": 0.85,
             "text-background-padding": 2,
+          },
+        },
+        {
+          selector: "edge[arrowSide = 'target']",
+          style: {
+            "target-arrow-shape": "triangle",
+            "target-arrow-color": "#94a3b8",
+            "arrow-scale": 0.9,
+          },
+        },
+        {
+          selector: "edge[arrowSide = 'source']",
+          style: {
+            "source-arrow-shape": "triangle",
+            "source-arrow-color": "#94a3b8",
+            "arrow-scale": 0.9,
           },
         },
         {
@@ -123,6 +164,44 @@
   // Re-render, wenn sich die Daten von außen ändern
   $effect(() => {
     render();
+  });
+
+  // Ausgewählte Person zentrieren
+  $effect(() => {
+    if (!cy || selectedPersonId == null) return;
+    const node = cy.getElementById(String(selectedPersonId));
+    if (node.length) {
+      cy.animate({ center: { eles: node } }, { duration: 300 });
+    }
+  });
+
+  // Edge-Beschriftung + Pfeilrichtung aus Sicht der selektierten Person aktualisieren
+  // (z.B. "Tochter" Richtung B, aber wenn B selektiert ist: "Mutter", Pfeil zeigt
+  // dann weg von B statt auf B).
+  $effect(() => {
+    const sid = selectedPersonId == null ? null : String(selectedPersonId);
+    const viewerGender = people.find((p) => p.id === selectedPersonId)?.gender;
+    if (!cy) return;
+    cy.edges().forEach((edge) => {
+      const kind = edge.data("kind");
+      if (!directionalKinds.has(kind)) {
+        edge.data("label", kind);
+        edge.data("arrowSide", "target");
+        return;
+      }
+      const sourceId = edge.data("source");
+      const targetId = edge.data("target");
+      if (sid !== sourceId && sid !== targetId) {
+        edge.data("label", kind);
+        edge.data("arrowSide", "target");
+      } else if (sid === sourceId || sid == null) {
+        edge.data("label", kind);
+        edge.data("arrowSide", "target");
+      } else {
+        edge.data("label", reciprocalKind(kind, viewerGender));
+        edge.data("arrowSide", "source");
+      }
+    });
   });
 </script>
 

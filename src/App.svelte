@@ -1,8 +1,9 @@
 <script>
   import { onMount } from "svelte";
   import Graph from "./lib/Graph.svelte";
+  import MapView from "./lib/MapView.svelte";
   import PersonForm from "./lib/PersonForm.svelte";
-  import FamilyPanel from "./lib/FamilyPanel.svelte";
+  import PersonModal from "./lib/PersonModal.svelte";
   import EdgeForm from "./lib/EdgeForm.svelte";
   import * as api from "./lib/api.js";
 
@@ -12,6 +13,8 @@
   let selectedPersonId = $state(null); // für Edit-Panel
   let selectedEdgeId = $state(null);
   let showNewPersonForm = $state(false);
+
+  let view = $state("graph"); // "graph" | "map"
 
   let connectMode = $state(false);
   let connectSource = $state(null); // id der ersten gewählten Person beim Verbinden
@@ -54,9 +57,9 @@
         await api.updatePerson(payload);
       } else {
         await api.addPerson(payload);
+        selectedPersonId = null;
       }
       showNewPersonForm = false;
-      selectedPersonId = null;
       await refresh();
     } catch (e) {
       error = String(e);
@@ -99,7 +102,7 @@
       return;
     }
     try {
-      await api.addRelationship({
+      const rel = await api.addRelationship({
         personA: connectSource,
         personB: id,
         kind: "kennt",
@@ -109,6 +112,7 @@
       connectMode = false;
       connectSource = null;
       await refresh();
+      selectedEdgeId = rel.id;
     } catch (e) {
       error = String(e);
       connectSource = null;
@@ -119,6 +123,15 @@
     try {
       await api.updateRelationship(payload);
       selectedEdgeId = null;
+      await refresh();
+    } catch (e) {
+      error = String(e);
+    }
+  }
+
+  async function swapRelationship(id) {
+    try {
+      await api.swapRelationshipDirection(id);
       await refresh();
     } catch (e) {
       error = String(e);
@@ -146,6 +159,8 @@
   <header>
     <h1>Soziale Beziehungen</h1>
     <div class="toolbar">
+      <button class:active={view === "graph"} onclick={() => (view = "graph")}>Graph</button>
+      <button class:active={view === "map"} onclick={() => (view = "map")}>Karte</button>
       <button onclick={openNewPerson}>+ Person</button>
       <button class:active={connectMode} onclick={toggleConnectMode}>
         {connectMode ? (connectSource !== null ? "Zweite Person wählen…" : "Erste Person wählen…") : "Verbinden"}
@@ -159,41 +174,52 @@
 
   <div class="layout">
     <div class="canvas">
-      <Graph
-        {people}
-        {relationships}
-        {connectMode}
-        onNodeClick={handleNodeClick}
-        onEdgeClick={handleEdgeClick}
-        onCanvasClick={closeAllPanels}
-        onConnectTarget={handleConnectTarget}
-      />
+      {#if view === "graph"}
+        <Graph
+          {people}
+          {relationships}
+          {selectedPersonId}
+          {connectMode}
+          onNodeClick={handleNodeClick}
+          onEdgeClick={handleEdgeClick}
+          onCanvasClick={closeAllPanels}
+          onConnectTarget={handleConnectTarget}
+        />
+      {:else}
+        <MapView {people} onPersonClick={handleNodeClick} onGeocoded={refresh} />
+      {/if}
     </div>
 
-    {#if showNewPersonForm || selectedPerson || selectedEdge}
+    {#if showNewPersonForm || selectedEdge}
       <div class="sidebar">
         {#if showNewPersonForm}
           <PersonForm onSave={savePerson} onClose={() => (showNewPersonForm = false)} />
-        {:else if selectedPerson}
-          <PersonForm
-            person={selectedPerson}
-            onSave={savePerson}
-            onDelete={deletePerson}
-            onClose={() => (selectedPersonId = null)}
-          />
-          <FamilyPanel person={selectedPerson} {people} onChange={refresh} />
         {:else if selectedEdge}
           <EdgeForm
             relationship={selectedEdge}
             {peopleById}
             onSave={saveRelationship}
             onDelete={deleteRelationship}
+            onSwap={swapRelationship}
             onClose={() => (selectedEdgeId = null)}
           />
         {/if}
       </div>
     {/if}
   </div>
+
+  <PersonModal
+    person={selectedPerson}
+    {people}
+    {relationships}
+    {peopleById}
+    onSave={savePerson}
+    onDelete={deletePerson}
+    onClose={() => (selectedPersonId = null)}
+    onChange={refresh}
+    onSelectPerson={handleNodeClick}
+    onSelectEdge={handleEdgeClick}
+  />
 </main>
 
 <style>

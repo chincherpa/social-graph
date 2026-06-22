@@ -8,20 +8,31 @@
   let dragging = false;
   let circleX = $state(CANVAS_SIZE / 2);
   let circleY = $state(CANVAS_SIZE / 2);
-  let imageUrl = $state("");
-  let img = new Image();
+  let img = null;
 
+  // Lädt das Bild neu, wenn sich imageFile ändert (unabhängig vom Redraw-Effect unten,
+  // sonst entsteht ein Update-Loop zwischen Bildladen und Zeichnen).
   $effect(() => {
-    if (imageFile) {
-      imageUrl = URL.createObjectURL(imageFile);
-      img = new Image();
-      img.onload = draw;
-      img.src = imageUrl;
-    }
+    if (!imageFile) return;
+    const url = URL.createObjectURL(imageFile);
+    const loaded = new Image();
+    loaded.onload = () => {
+      img = loaded;
+      draw();
+    };
+    loaded.src = url;
+    return () => URL.revokeObjectURL(url);
+  });
+
+  // Neu zeichnen, wenn sich die Kreisposition ändert.
+  $effect(() => {
+    circleX;
+    circleY;
+    draw();
   });
 
   function draw() {
-    if (!canvas) return;
+    if (!canvas || !img) return;
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
     ctx.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
@@ -60,7 +71,6 @@
     const { x, y } = pointerPos(e);
     circleX = clamp(x);
     circleY = clamp(y);
-    draw();
   }
 
   function onPointerUp() {
