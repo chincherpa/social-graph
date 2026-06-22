@@ -92,6 +92,72 @@ pub async fn delete_person(db: Db<'_>, id: i64) -> Result<(), String> {
     Ok(())
 }
 
+// ---------- Profilbilder ----------
+
+#[tauri::command]
+pub async fn upload_person_image(
+    db: Db<'_>,
+    person_id: i64,
+    file_bytes: Vec<u8>,
+    crop_x: i64,
+    crop_y: i64,
+    crop_radius: i64,
+) -> Result<Person, String> {
+    let ext = crate::image::validate_image(&file_bytes)?;
+
+    let dir = crate::image::images_dir();
+    // Remove any previous image for this person, regardless of extension.
+    let _ = std::fs::remove_file(dir.join(format!("{person_id}.jpg")));
+    let _ = std::fs::remove_file(dir.join(format!("{person_id}.png")));
+
+    let file_path = dir.join(format!("{person_id}.{ext}"));
+    std::fs::write(&file_path, &file_bytes).map_err(|e| format!("Failed to save image: {e}"))?;
+
+    let path_str = file_path.to_string_lossy().to_string();
+
+    let rec = sqlx::query_as::<_, Person>(&format!(
+        "UPDATE people SET image_path = ?, image_crop_x = ?, image_crop_y = ?, image_crop_radius = ?
+         WHERE id = ?
+         RETURNING {PERSON_COLUMNS}"
+    ))
+    .bind(&path_str)
+    .bind(crop_x)
+    .bind(crop_y)
+    .bind(crop_radius)
+    .bind(person_id)
+    .fetch_one(db.inner())
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(attach_image(rec))
+}
+
+#[tauri::command]
+pub async fn delete_person_image(db: Db<'_>, person_id: i64) -> Result<Person, String> {
+    let existing: Option<(Option<String>,)> =
+        sqlx::query_as("SELECT image_path FROM people WHERE id = ?")
+            .bind(person_id)
+            .fetch_optional(db.inner())
+            .await
+            .map_err(|e| e.to_string())?;
+
+    if let Some((Some(path),)) = existing {
+        let _ = std::fs::remove_file(&path);
+    }
+
+    let rec = sqlx::query_as::<_, Person>(&format!(
+        "UPDATE people SET image_path = NULL, image_crop_x = NULL, image_crop_y = NULL, image_crop_radius = NULL
+         WHERE id = ?
+         RETURNING {PERSON_COLUMNS}"
+    ))
+    .bind(person_id)
+    .fetch_one(db.inner())
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(attach_image(rec))
+}
+
 // ---------- Relationships ----------
 
 /// Normalisiert ein Personen-Paar so, dass from_id < to_id gilt.
