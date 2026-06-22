@@ -48,7 +48,6 @@
     try {
       const updated = await uploadPersonImage(person.id, bytes, x, y, radius);
       person = updated;
-      onSave; // no-op reference kept; actual persistence already happened server-side
     } catch (err) {
       imageError = String(err);
     } finally {
