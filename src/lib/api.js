@@ -192,6 +192,23 @@ export function geocodePerson(personId) {
   return invoke("geocode_person", { personId });
 }
 
+// ---------- Letzter Kontakt ----------
+
+export const contactTypes = [
+  { value: "in_person", label: "in person" },
+  { value: "messenger", label: "via messenger" },
+  { value: "call", label: "call" },
+  { value: "email", label: "email" },
+];
+
+export function contactTypeLabel(value) {
+  return contactTypes.find((t) => t.value === value)?.label ?? value;
+}
+
+export function setLastContact(personId, contactType, contactDate) {
+  return invoke("set_last_contact", { personId, contactType, contactDate });
+}
+
 // ---------- Graph ----------
 
 export function getGraph() {

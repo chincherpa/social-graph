@@ -1,5 +1,5 @@
 <script>
-  import { displayName, placeholderFor } from "./api.js";
+  import { displayName, placeholderFor, contactTypes, contactTypeLabel, setLastContact } from "./api.js";
   import PersonForm from "./PersonForm.svelte";
   import FamilyPanel from "./FamilyPanel.svelte";
   import RelationsPanel from "./RelationsPanel.svelte";
@@ -18,11 +18,37 @@
   } = $props();
 
   let editing = $state(false);
+  let contactOpen = $state(false);
+  let pendingContactType = $state(null);
 
   $effect(() => {
     person?.id;
     editing = false;
+    contactOpen = false;
+    pendingContactType = null;
   });
+
+  function today() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function openContactPicker() {
+    contactOpen = true;
+    pendingContactType = null;
+  }
+
+  function pickContactType(type) {
+    pendingContactType = type;
+  }
+
+  async function saveContactDate(e) {
+    const date = e.target.value;
+    if (!date) return;
+    await setLastContact(person.id, pendingContactType, date);
+    contactOpen = false;
+    pendingContactType = null;
+    onChange();
+  }
 
   async function handleSave(payload) {
     await onSave(payload);
@@ -79,6 +105,25 @@
             <dd>{fmtDate(person.birth_date) ?? "—"}</dd>
             <dt>Kennengelernt am</dt>
             <dd>{fmtDate(person.known_since) ?? "—"}</dd>
+            <dt>Zuletzt kontaktiert</dt>
+            <dd>
+              {#if !contactOpen}
+                <span>
+                  {person.last_contact_date
+                    ? `${contactTypeLabel(person.last_contact_type)} – ${fmtDate(person.last_contact_date)}`
+                    : "—"}
+                </span>
+                <button class="mini-btn" onclick={openContactPicker} aria-label="Ändern">✎</button>
+              {:else if !pendingContactType}
+                <div class="pills">
+                  {#each contactTypes as ct}
+                    <button class="pill" onclick={() => pickContactType(ct.value)}>{ct.label}</button>
+                  {/each}
+                </div>
+              {:else}
+                <input type="date" value={today()} onchange={saveContactDate} />
+              {/if}
+            </dd>
             {#if person.address}
               <dt>Adresse</dt>
               <dd>{person.address}</dd>
@@ -197,5 +242,34 @@
   }
   dd.note {
     white-space: pre-wrap;
+  }
+  .mini-btn {
+    margin-left: 0.4rem;
+    border: none;
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 0 0.2rem;
+  }
+  .mini-btn:hover {
+    color: #1d4ed8;
+  }
+  .pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+  .pill {
+    padding: 0.25rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid #cbd5e1;
+    background: #f1f5f9;
+    color: #1e293b;
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+  .pill:hover {
+    background: #e2e8f0;
   }
 </style>

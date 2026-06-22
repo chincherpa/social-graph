@@ -7,7 +7,7 @@ use tauri::State;
 
 type Db<'a> = State<'a, SqlitePool>;
 
-const PERSON_COLUMNS: &str = "id, first_name, last_name, nickname, birth_date, known_since, address, employer, note, color, gender, image_path, image_crop_x, image_crop_y, image_crop_radius, lat, lon, geocoded_at, created_at";
+const PERSON_COLUMNS: &str = "id, first_name, last_name, nickname, birth_date, known_since, address, employer, note, color, gender, image_path, image_crop_x, image_crop_y, image_crop_radius, lat, lon, geocoded_at, last_contact_type, last_contact_date, created_at";
 
 fn attach_image(mut person: Person) -> Person {
     if let Some(path) = &person.image_path {
@@ -447,6 +447,28 @@ pub async fn geocode_person(db: Db<'_>, person_id: i64) -> Result<Person, String
     ))
     .bind(lat)
     .bind(lon)
+    .bind(person_id)
+    .fetch_one(db.inner())
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(attach_image(rec))
+}
+
+#[tauri::command]
+pub async fn set_last_contact(
+    db: Db<'_>,
+    person_id: i64,
+    contact_type: String,
+    contact_date: String,
+) -> Result<Person, String> {
+    let rec = sqlx::query_as::<_, Person>(&format!(
+        "UPDATE people SET last_contact_type = ?, last_contact_date = ?
+         WHERE id = ?
+         RETURNING {PERSON_COLUMNS}"
+    ))
+    .bind(contact_type)
+    .bind(contact_date)
     .bind(person_id)
     .fetch_one(db.inner())
     .await

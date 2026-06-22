@@ -6,8 +6,8 @@ mod models;
 use commands::{
     add_family_member, add_person, add_relationship, delete_person, delete_person_image,
     delete_relationship, geocode_person, get_family, get_graph, list_people, list_relationships,
-    remove_family_member, swap_relationship_direction, update_person, update_relationship,
-    upload_person_image,
+    remove_family_member, set_last_contact, swap_relationship_direction, update_person,
+    update_relationship, upload_person_image,
 };
 use tauri::Manager;
 
@@ -40,6 +40,7 @@ pub fn run() {
             upload_person_image,
             delete_person_image,
             geocode_person,
+            set_last_contact,
         ])
         .run(tauri::generate_context!())
         .expect("Fehler beim Starten der Tauri-App");

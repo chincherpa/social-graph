@@ -20,6 +20,8 @@ pub struct Person {
     pub lat: Option<f64>,
     pub lon: Option<f64>,
     pub geocoded_at: Option<String>,
+    pub last_contact_type: Option<String>,
+    pub last_contact_date: Option<String>,
     pub created_at: String,
     #[sqlx(skip)]
     pub image_data: Option<String>,

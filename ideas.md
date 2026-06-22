@@ -12,4 +12,4 @@ zuletzt kontaktiert
 
 Dots auf Weltkarte
 
-selektierte person im Graph image 150%
+DONE selektierte person im Graph image 150%
