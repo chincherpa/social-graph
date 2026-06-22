@@ -1,5 +1,6 @@
 mod commands;
 mod db;
+mod image;
 mod models;
 
 use commands::{

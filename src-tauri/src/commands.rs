@@ -7,18 +7,30 @@ use tauri::State;
 
 type Db<'a> = State<'a, SqlitePool>;
 
-const PERSON_COLUMNS: &str = "id, first_name, last_name, nickname, birth_date, known_since, address, employer, note, color, gender, created_at";
+const PERSON_COLUMNS: &str = "id, first_name, last_name, nickname, birth_date, known_since, address, employer, note, color, gender, image_path, image_crop_x, image_crop_y, image_crop_radius, created_at";
+
+fn attach_image(mut person: Person) -> Person {
+    if let Some(path) = &person.image_path {
+        person.image_data = crate::image::encode_data_url(std::path::Path::new(path));
+    }
+    person
+}
+
+fn attach_images(people: Vec<Person>) -> Vec<Person> {
+    people.into_iter().map(attach_image).collect()
+}
 
 // ---------- People ----------
 
 #[tauri::command]
 pub async fn list_people(db: Db<'_>) -> Result<Vec<Person>, String> {
-    sqlx::query_as::<_, Person>(&format!(
+    let people = sqlx::query_as::<_, Person>(&format!(
         "SELECT {PERSON_COLUMNS} FROM people ORDER BY last_name, first_name"
     ))
     .fetch_all(db.inner())
     .await
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+    Ok(attach_images(people))
 }
 
 #[tauri::command]
@@ -42,7 +54,7 @@ pub async fn add_person(db: Db<'_>, payload: NewPerson) -> Result<Person, String
     .fetch_one(db.inner())
     .await
     .map_err(|e| e.to_string())?;
-    Ok(rec)
+    Ok(attach_image(rec))
 }
 
 #[tauri::command]
@@ -66,7 +78,7 @@ pub async fn update_person(db: Db<'_>, payload: UpdatePerson) -> Result<Person, 
     .fetch_one(db.inner())
     .await
     .map_err(|e| e.to_string())?;
-    Ok(rec)
+    Ok(attach_image(rec))
 }
 
 #[tauri::command]
@@ -271,7 +283,7 @@ pub async fn get_graph(db: Db<'_>) -> Result<GraphData, String> {
     .map_err(|e| e.to_string())?;
 
     Ok(GraphData {
-        people,
+        people: attach_images(people),
         relationships,
     })
 }

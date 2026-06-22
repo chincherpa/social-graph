@@ -13,7 +13,13 @@ pub struct Person {
     pub note: Option<String>,
     pub color: String,
     pub gender: Option<String>,
+    pub image_path: Option<String>,
+    pub image_crop_x: Option<i64>,
+    pub image_crop_y: Option<i64>,
+    pub image_crop_radius: Option<i64>,
     pub created_at: String,
+    #[sqlx(skip)]
+    pub image_data: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
