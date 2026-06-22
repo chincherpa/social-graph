@@ -74,6 +74,26 @@ export function deletePerson(id) {
   return invoke("delete_person", { id });
 }
 
+// ---------- Profilbilder ----------
+
+export function placeholderFor(gender) {
+  return gender === "w" ? "images/female.png" : "images/male.png";
+}
+
+export async function uploadPersonImage(personId, fileBytes, cropX, cropY, cropRadius) {
+  return invoke("upload_person_image", {
+    personId,
+    fileBytes: Array.from(fileBytes),
+    cropX,
+    cropY,
+    cropRadius,
+  });
+}
+
+export function deletePersonImage(personId) {
+  return invoke("delete_person_image", { personId });
+}
+
 // ---------- Relationships ----------
 
 export function listRelationships() {
