@@ -13,3 +13,6 @@ zuletzt kontaktiert
 Dots auf Weltkarte
 
 DONE selektierte person im Graph image 150%
+
+"Zuletzt kontaktiert" Verlauf
+
