@@ -16,3 +16,8 @@ DONE selektierte person im Graph image 150%
 
 "Zuletzt kontaktiert" Verlauf
 
+Verbindungen umkehren
+- Mutter, Vater / Tochter, Sohn
+- Opa, Oma / Enkel, Enkelin
+- Onkel, Tante / Neffe, Nichte
+usw.

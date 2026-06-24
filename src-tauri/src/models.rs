@@ -56,6 +56,16 @@ pub struct UpdatePerson {
     pub gender: Option<String>,
 }
 
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct ContactEvent {
+    pub id: i64,
+    pub person_id: i64,
+    pub contact_type: String,
+    pub contact_date: String,
+    pub note: Option<String>,
+    pub created_at: String,
+}
+
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Relationship {
     pub id: i64,

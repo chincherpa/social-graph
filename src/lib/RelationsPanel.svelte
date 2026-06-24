@@ -11,9 +11,11 @@
         const isFrom = r.from_id === person.id;
         const otherId = isFrom ? r.to_id : r.from_id;
         const other = peopleById.get(otherId);
-        // gerichtete Kinds lesen sich "from ist [kind] von to" -> wenn person selbst
-        // das to_id ist, gilt für sie die reziproke Bezeichnung (z.B. Tochter -> Mutter/Vater).
-        const label = directionalKinds.has(r.kind) && !isFrom ? reciprocalKind(r.kind, person.gender) : r.kind;
+        // kind beschreibt from_id's Rolle gegenüber to_id ("from ist kind von to").
+        // Angezeigt wird die Rolle von "other" gegenüber "person":
+        // - ist person selbst from_id, ist "other" (=to) die reziproke Rolle (z.B. Tochter -> Mutter/Vater).
+        // - ist person to_id, beschreibt kind bereits direkt other's (=from) Rolle.
+        const label = isFrom && directionalKinds.has(r.kind) ? reciprocalKind(r.kind, other.gender) : r.kind;
         return { edge: r, other, label };
       })
       .filter((row) => row.other)

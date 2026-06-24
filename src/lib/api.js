@@ -205,8 +205,32 @@ export function contactTypeLabel(value) {
   return contactTypes.find((t) => t.value === value)?.label ?? value;
 }
 
-export function setLastContact(personId, contactType, contactDate) {
-  return invoke("set_last_contact", { personId, contactType, contactDate });
+const contactIcons = {
+  in_person: "🤝",
+  messenger: "💬",
+  call: "📞",
+  email: "✉️",
+};
+
+export function contactTypeIcon(value) {
+  return contactIcons[value] ?? "•";
+}
+
+export function listContactEvents(personId) {
+  return invoke("list_contact_events", { personId });
+}
+
+export function addContactEvent(personId, contactType, contactDate, note) {
+  return invoke("add_contact_event", {
+    personId,
+    contactType,
+    contactDate,
+    note: note || null,
+  });
+}
+
+export function deleteContactEvent(eventId) {
+  return invoke("delete_contact_event", { eventId });
 }
 
 // ---------- Graph ----------

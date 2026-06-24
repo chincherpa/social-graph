@@ -1,6 +1,6 @@
 use crate::models::{
-    FamilyMember, FamilyMemberDetail, GraphData, NewFamilyMember, NewPerson, NewRelationship,
-    NominatimResult, Person, Relationship, UpdatePerson, UpdateRelationship,
+    ContactEvent, FamilyMember, FamilyMemberDetail, GraphData, NewFamilyMember, NewPerson,
+    NewRelationship, NominatimResult, Person, Relationship, UpdatePerson, UpdateRelationship,
 };
 use sqlx::SqlitePool;
 use tauri::State;
@@ -455,26 +455,85 @@ pub async fn geocode_person(db: Db<'_>, person_id: i64) -> Result<Person, String
     Ok(attach_image(rec))
 }
 
+// ---------- Kontakt-Verlauf ----------
+
+/// Berechnet den denormalisierten "letzter Kontakt"-Cache auf `people` neu
+/// (= Event mit höchstem Datum) und gibt die aktualisierte Person zurück.
+async fn refresh_last_contact(db: &SqlitePool, person_id: i64) -> Result<Person, String> {
+    let rec = sqlx::query_as::<_, Person>(&format!(
+        "UPDATE people SET
+            last_contact_type = (SELECT contact_type FROM contact_events
+                                 WHERE person_id = ? ORDER BY contact_date DESC, id DESC LIMIT 1),
+            last_contact_date = (SELECT contact_date FROM contact_events
+                                 WHERE person_id = ? ORDER BY contact_date DESC, id DESC LIMIT 1)
+         WHERE id = ?
+         RETURNING {PERSON_COLUMNS}"
+    ))
+    .bind(person_id)
+    .bind(person_id)
+    .bind(person_id)
+    .fetch_one(db)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(attach_image(rec))
+}
+
 #[tauri::command]
-pub async fn set_last_contact(
+pub async fn list_contact_events(
+    db: Db<'_>,
+    person_id: i64,
+) -> Result<Vec<ContactEvent>, String> {
+    sqlx::query_as::<_, ContactEvent>(
+        "SELECT id, person_id, contact_type, contact_date, note, created_at
+         FROM contact_events WHERE person_id = ?
+         ORDER BY contact_date DESC, id DESC",
+    )
+    .bind(person_id)
+    .fetch_all(db.inner())
+    .await
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn add_contact_event(
     db: Db<'_>,
     person_id: i64,
     contact_type: String,
     contact_date: String,
+    note: Option<String>,
 ) -> Result<Person, String> {
-    let rec = sqlx::query_as::<_, Person>(&format!(
-        "UPDATE people SET last_contact_type = ?, last_contact_date = ?
-         WHERE id = ?
-         RETURNING {PERSON_COLUMNS}"
-    ))
+    sqlx::query(
+        "INSERT INTO contact_events (person_id, contact_type, contact_date, note)
+         VALUES (?, ?, ?, ?)",
+    )
+    .bind(person_id)
     .bind(contact_type)
     .bind(contact_date)
-    .bind(person_id)
+    .bind(note)
+    .execute(db.inner())
+    .await
+    .map_err(|e| e.to_string())?;
+
+    refresh_last_contact(db.inner(), person_id).await
+}
+
+#[tauri::command]
+pub async fn delete_contact_event(db: Db<'_>, event_id: i64) -> Result<Person, String> {
+    let person_id: i64 = sqlx::query_scalar(
+        "SELECT person_id FROM contact_events WHERE id = ?",
+    )
+    .bind(event_id)
     .fetch_one(db.inner())
     .await
     .map_err(|e| e.to_string())?;
 
-    Ok(attach_image(rec))
+    sqlx::query("DELETE FROM contact_events WHERE id = ?")
+        .bind(event_id)
+        .execute(db.inner())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    refresh_last_contact(db.inner(), person_id).await
 }
 
 // ---------- Graph (kombiniert) ----------
