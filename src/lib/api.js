@@ -57,6 +57,37 @@ export function reciprocalKind(kind, toGender) {
   return entry[toGender] ?? entry.default;
 }
 
+// ---------- Abgeleitete Beziehungen ----------
+
+// kinds, bei denen from_id das Kind von to_id ist.
+const childOfKinds = new Set(["Sohn", "Tochter"]);
+// kinds, bei denen from_id der Elternteil von to_id ist.
+const parentOfKinds = new Set(["Mutter", "Vater"]);
+// kinds, die eine Geschwisterbeziehung bereits explizit ausdrücken.
+export const siblingKinds = new Set(["Bruder", "Schwester", "Geschwister"]);
+
+// Alle Eltern-Kind-Kanten als {parent, child} normalisiert.
+function parentChildLinks(relationships) {
+  const links = [];
+  for (const r of relationships) {
+    if (childOfKinds.has(r.kind)) links.push({ parent: r.to_id, child: r.from_id });
+    else if (parentOfKinds.has(r.kind)) links.push({ parent: r.from_id, child: r.to_id });
+  }
+  return links;
+}
+
+// Geschwister-IDs einer Person, abgeleitet über gemeinsame Eltern.
+// Beispiel: A Tochter von C, B Sohn von C -> A und B sind Geschwister.
+export function deriveSiblingIds(personId, relationships) {
+  const links = parentChildLinks(relationships);
+  const parents = new Set(links.filter((l) => l.child === personId).map((l) => l.parent));
+  const siblingIds = new Set();
+  for (const l of links) {
+    if (l.child !== personId && parents.has(l.parent)) siblingIds.add(l.child);
+  }
+  return siblingIds;
+}
+
 // ---------- People ----------
 
 export function listPeople() {
