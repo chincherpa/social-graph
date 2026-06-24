@@ -20,9 +20,11 @@ export const directionalKinds = new Set([
   "Onkel",
   "Opa",
   "Schwester",
+  "Mutter",
   "Sohn",
   "Tante",
   "Tochter",
+  "Vater",
 ]);
 
 // Für gerichtete kinds: was ist to_id für from_id, ausgedrückt aus Sicht von to_id
@@ -42,6 +44,8 @@ const reciprocalKinds = {
   Tante: { m: "Neffe", w: "Nichte", default: "Neffe/Nichte" },
   Sohn: { m: "Vater", w: "Mutter", default: "Elternteil" },
   Tochter: { m: "Vater", w: "Mutter", default: "Elternteil" },
+  Mutter: { m: "Sohn", w: "Tochter", default: "Kind" },
+  Vater: { m: "Sohn", w: "Tochter", default: "Kind" },
 };
 
 // Bezeichnung für to_id (das Gegenstück eines gerichteten kind), abhängig von dessen Geschlecht.

@@ -21,3 +21,6 @@ Verbindungen umkehren
 - Opa, Oma / Enkel, Enkelin
 - Onkel, Tante / Neffe, Nichte
 usw.
+
+Mehr Verbindungstypen
+

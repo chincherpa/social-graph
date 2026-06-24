@@ -9,13 +9,12 @@
       .filter((r) => r.from_id === person.id || r.to_id === person.id)
       .map((r) => {
         const isFrom = r.from_id === person.id;
-        const otherId = isFrom ? r.to_id : r.from_id;
-        const other = peopleById.get(otherId);
+        const other = peopleById.get(isFrom ? r.to_id : r.from_id);
         // kind beschreibt from_id's Rolle gegenüber to_id ("from ist kind von to").
-        // Angezeigt wird die Rolle von "other" gegenüber "person":
-        // - ist person selbst from_id, ist "other" (=to) die reziproke Rolle (z.B. Tochter -> Mutter/Vater).
-        // - ist person to_id, beschreibt kind bereits direkt other's (=from) Rolle.
-        const label = isFrom && directionalKinds.has(r.kind) ? reciprocalKind(r.kind, other.gender) : r.kind;
+        // Ist person selbst from_id, ist "other" (=to) Träger der reziproken Rolle
+        // (z.B. "Mutter" -> Sohn/Tochter je nach Geschlecht von other).
+        // Ist person to_id, beschreibt kind bereits direkt other's (=from) Rolle.
+        const label = isFrom && directionalKinds.has(r.kind) ? reciprocalKind(r.kind, other?.gender) : r.kind;
         return { edge: r, other, label };
       })
       .filter((row) => row.other)
